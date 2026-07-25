@@ -1,0 +1,46 @@
+{
+  "answer_style": [
+    {
+      "id": "style-001",
+      "title": "Answer Style Guidelines",
+      "tags": ["style", "format", "tone"],
+      "content": "Keep answers concise and actionable. Use bullet points for plans. Include specific numbers (calories, grams, reps) when available from user context. Prefer practical suggestions over theory."
+    }
+  ],
+  "nutrition": [
+    {
+      "id": "nutrition-001",
+      "title": "Balanced Meal Basics",
+      "tags": ["meal", "nutrition", "balance", "calories", "macros"],
+      "content": "A balanced meal includes a protein source (20-30g), complex carbs, healthy fats, and vegetables. Aim for 400-600 calories per main meal depending on daily calorie goal."
+    },
+    {
+      "id": "nutrition-002",
+      "title": "Indian Meal Options",
+      "tags": ["indian", "meal", "cuisine", "dal", "roti", "rice"],
+      "content": "Popular Indian meals: Dal + roti (400 cal), Rajma chawal (500 cal), Paneer sabzi + roti (450 cal), Idli sambar (300 cal), Poha (250 cal). These are filling and nutritionally complete."
+    }
+  ],
+  "workout": [
+    {
+      "id": "workout-001",
+      "title": "Beginner Workout Structure",
+      "tags": ["workout", "beginner", "routine", "exercise", "fitness"],
+      "content": "Beginners: 3 days/week full-body workouts. Each session: 5 min warm-up, 3 sets of 8-12 reps for compound movements (squats, push-ups, rows), 5 min cool-down."
+    },
+    {
+      "id": "workout-002",
+      "title": "Home Workout Essentials",
+      "tags": ["home", "workout", "no gym", "bodyweight", "exercise"],
+      "content": "Effective home exercises: Push-ups (chest/triceps), Squats (legs), Planks (core), Lunges (legs/glutes), Mountain climbers (cardio+core). No equipment needed."
+    }
+  ],
+  "bmi": [
+    {
+      "id": "bmi-001",
+      "title": "BMI Interpretation",
+      "tags": ["bmi", "weight", "health", "calculator"],
+      "content": "BMI ranges: Under 18.5 = underweight, 18.5-24.9 = normal, 25-29.9 = overweight, 30+ = obese. BMI is a screening tool, not a diagnosis — muscle mass and body composition matter too."
+    }
+  ]
+}
