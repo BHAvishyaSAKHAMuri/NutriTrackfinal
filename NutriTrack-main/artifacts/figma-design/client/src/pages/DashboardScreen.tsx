@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AiChatWidget } from "@/components/AiChatWidget";
 import { ProfileEditModal } from "@/components/ProfileEditModal";
 import { QuickLogWidget } from "@/components/QuickLogWidget";
+import { MealScanner } from "@/components/MealScanner";
 
 interface UserProfile {
   id: string;
@@ -340,6 +341,11 @@ export default function DashboardScreen() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* 📸 AI Vision Scanner */}
+          <div className="mb-8">
+            <MealScanner />
           </div>
 
           {/* Today's meals log */}

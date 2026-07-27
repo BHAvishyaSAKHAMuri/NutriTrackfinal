@@ -46,12 +46,15 @@ export interface IStorage {
 
 // ─── BMI helpers ─────────────────────────────────────────────────────────────
 
-export function calcBMI(weightKg: number, heightCm: number): number {
-  const h = heightCm / 100;
-  return Math.round((weightKg / (h * h)) * 10) / 10;
+export function calcBMI(weightKg: number | string, heightCm: number | string): number {
+  const w = Number(weightKg);
+  const h = Number(heightCm) / 100;
+  if (!w || !h || h <= 0) return 0;
+  return Math.round((w / (h * h)) * 10) / 10;
 }
 
 export function bmiCategory(bmi: number): string {
+  if (bmi <= 0) return "Unknown";
   if (bmi < 18.5) return "Underweight";
   if (bmi < 25) return "Normal Weight";
   if (bmi < 30) return "Overweight";
@@ -60,18 +63,25 @@ export function bmiCategory(bmi: number): string {
 }
 
 export function calcCaloriesTarget(
-  weightKg: number,
-  heightCm: number,
-  age: number,
-  gender: string,
-  activityLevel: string,
-  goal: string,
+  weightKg: number | string,
+  heightCm: number | string,
+  age: number | string,
+  gender?: string | null,
+  activityLevel?: string | null,
+  goal?: string | null,
 ): number {
+  const w = Number(weightKg);
+  const h = Number(heightCm);
+  const a = Number(age) || 25;
+  if (!w || !h) return 2000;
+
+  const gnd = gender?.toLowerCase() === "female" ? "female" : "male";
+
   // Mifflin-St Jeor BMR
   const bmr =
-    gender?.toLowerCase() === "female"
-      ? 10 * weightKg + 6.25 * heightCm - 5 * age - 161
-      : 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+    gnd === "female"
+      ? 10 * w + 6.25 * h - 5 * a - 161
+      : 10 * w + 6.25 * h - 5 * a + 5;
 
   const factors: Record<string, number> = {
     sedentary: 1.2,
@@ -80,12 +90,51 @@ export function calcCaloriesTarget(
     very_active: 1.725,
     extra_active: 1.9,
   };
-  const tdee = bmr * (factors[activityLevel] ?? 1.55);
+  const tdee = bmr * (factors[activityLevel || "moderately_active"] ?? 1.55);
 
   const g = goal?.toLowerCase() ?? "";
   if (g.includes("lose") || g.includes("weight loss")) return Math.round(tdee - 500);
   if (g.includes("gain") || g.includes("bulk")) return Math.round(tdee + 500);
   return Math.round(tdee);
+}
+
+// Helper to attach computed BMI & targets to profile objects dynamically
+function enrichProfile(profile: UserProfile): UserProfile {
+  if (!profile) return profile;
+
+  // Clone profile into a plain object
+  const plain = { ...profile } as any;
+
+  const weightKg = Number(plain.weightKg ?? plain.weight_kg);
+  const heightCm = Number(plain.heightCm ?? plain.height_cm);
+  const age = Number(plain.age) || 20;
+
+  let bmi = plain.bmi;
+  let bmiCat = plain.bmiCategory;
+  let calTarget = plain.caloriesTarget;
+
+  if (weightKg > 0 && heightCm > 0) {
+    bmi = calcBMI(weightKg, heightCm);
+    bmiCat = bmiCategory(bmi);
+  }
+
+  if (weightKg > 0 && heightCm > 0) {
+    calTarget = calTarget || calcCaloriesTarget(
+      weightKg,
+      heightCm,
+      age,
+      plain.gender,
+      plain.activityLevel,
+      plain.goal
+    );
+  }
+
+  return {
+    ...plain,
+    bmi,
+    bmiCategory: bmiCat,
+    caloriesTarget: calTarget,
+  };
 }
 
 // ─── Database storage ─────────────────────────────────────────────────────────
@@ -174,12 +223,12 @@ export class DatabaseStorage implements IStorage {
 
   async getOrCreateDefaultProfile(): Promise<UserProfile> {
     const existing = await this.db.select().from(userProfiles).where(sql`${userProfiles.userId} IS NULL`).limit(1);
-    if (existing[0]) return existing[0];
+    if (existing[0]) return enrichProfile(existing[0]);
     const result = await this.db
       .insert(userProfiles)
       .values({ name: "User", goal: "Maintain weight", caloriesTarget: 2000 })
       .returning();
-    return result[0];
+    return enrichProfile(result[0]);
   }
 
   async getOrCreateProfile(userId: string): Promise<UserProfile> {
@@ -188,33 +237,37 @@ export class DatabaseStorage implements IStorage {
       .from(userProfiles)
       .where(eq(userProfiles.userId, userId))
       .limit(1);
-    if (existing[0]) return existing[0];
+    if (existing[0]) return enrichProfile(existing[0]);
     const result = await this.db
       .insert(userProfiles)
       .values({ userId, name: "User", goal: "Maintain weight", caloriesTarget: 2000 })
       .returning();
-    return result[0];
+    return enrichProfile(result[0]);
   }
 
   async updateProfile(
     id: string,
     updates: Partial<InsertUserProfile>,
   ): Promise<UserProfile> {
-    // Auto-recalculate BMI and calorie target if we have enough data
     const current = await this.db.select().from(userProfiles).where(eq(userProfiles.id, id)).limit(1);
-    const merged = { ...current[0], ...updates };
+    const existing = current[0] || {};
+    const merged = { ...existing, ...updates };
 
-    if (merged.weightKg && merged.heightCm) {
-      const bmi = calcBMI(merged.weightKg, merged.heightCm);
-      updates.bmi = bmi;
+    const weightKg = Number((merged as any).weightKg ?? (merged as any).weight_kg);
+    const heightCm = Number((merged as any).heightCm ?? (merged as any).height_cm);
+    const age = Number(merged.age) || 20;
+
+    if (weightKg > 0 && heightCm > 0) {
+      const bmi = calcBMI(weightKg, heightCm);
+      updates.bmi = bmi as any;
       updates.bmiCategory = bmiCategory(bmi);
     }
 
-    if (merged.weightKg && merged.heightCm && merged.age && merged.gender) {
+    if (weightKg > 0 && heightCm > 0) {
       updates.caloriesTarget = calcCaloriesTarget(
-        merged.weightKg,
-        merged.heightCm,
-        merged.age,
+        weightKg,
+        heightCm,
+        age,
         merged.gender,
         merged.activityLevel ?? "moderately_active",
         merged.goal ?? "Maintain weight",
@@ -226,7 +279,8 @@ export class DatabaseStorage implements IStorage {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(userProfiles.id, id))
       .returning();
-    return result[0];
+      
+    return enrichProfile(result[0]);
   }
 
   // ── Nutrition ──────────────────────────────────────────────────────────────

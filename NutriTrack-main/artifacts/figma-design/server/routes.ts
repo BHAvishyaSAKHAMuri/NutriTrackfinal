@@ -3,6 +3,46 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { handleAgent, getProviderConfig } from "./agent";
 import { passport, requireAuth } from "./auth";
+import Groq from "groq-sdk";
+import sharp from "sharp";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+// --- Helper to safely parse JSON from LLM outputs ---
+function parseJsonResponse(text: string): Record<string, any> {
+  try {
+    // Strips markdown code blocks (```json ... ```) if present
+    const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse JSON response:", text);
+    return {};
+  }
+}
+// --- Lazy Groq Client Helper ---
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GROQ_API_KEY environment variable is missing or empty. Please add GROQ_API_KEY to your .env file."
+    );
+  }
+  return new Groq({ apiKey });
+}
+
+// --- Image Resizing Helper (Prevents pixel-limit errors) ---
+async function resizeBase64Image(base64Data: string, maxDimension = 2048): Promise<string> {
+  const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, "");
+  const buffer = Buffer.from(base64Image, "base64");
+
+  const resizedBuffer = await sharp(buffer)
+    .resize(maxDimension, maxDimension, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+
+  return `data:image/jpeg;base64,${resizedBuffer.toString("base64")}`;
+}
 
 // --- MET calculation helper ---
 const MET_MAP: Record<string, number> = {
@@ -52,7 +92,7 @@ export async function registerRoutes(
     res.json({ status: "ok" });
   });
 
-  // ── Profile ───────────────────────────────────────────────────────────────
+  // ── Profile Endpoints ─────────────────────────────────────────────────────
 
   app.get("/api/profile", requireAuth, async (req, res) => {
     try {
@@ -69,58 +109,127 @@ export async function registerRoutes(
 
   app.patch("/api/profile", requireAuth, async (req, res) => {
     try {
-      const profile = await storage.getOrCreateProfile((req.user as any).id);
-      if (!profile) {
-        res.status(404).json({ error: "Profile not found." });
-        return;
-      }
-      const updated = await storage.updateProfile(profile.id, req.body);
-      res.json(updated);
+      const currentProfile = await storage.getOrCreateProfile((req.user as any).id);
+      const updatedProfile = await storage.updateProfile(currentProfile.id, req.body);
+      res.json(updatedProfile);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/profile/today", requireAuth, async (req, res) => {
+  // ── Vision / Food Recognition (Groq Vision with Indian Cuisine Taxonomy) ──
+
+  app.post("/api/vision/food", requireAuth, async (req, res) => {
     try {
-      const profile = await storage.getOrCreateProfile((req.user as any).id);
-      if (!profile) {
-        res.status(404).json({ error: "Profile not found." });
+      const { imageBase64, foodHint } = req.body;
+
+      if (!imageBase64) {
+        res.status(400).json({ error: "Image data is required." });
         return;
       }
-      const [nutrition, workoutsList] = await Promise.all([
-        storage.getTodayNutrition(profile.id),
-        storage.getTodayWorkouts(profile.id),
-      ]);
 
-      const totalCaloriesConsumed = nutrition.reduce(
-        (sum, n) => sum + (n.calories ?? 0),
-        0
-      );
-      const totalCaloriesBurned = workoutsList.reduce(
-        (sum, w) => sum + (w.caloriesBurned ?? 0),
-        0
-      );
-      const totalWorkoutMin = workoutsList.reduce(
-        (sum, w) => sum + (w.durationMin ?? 0),
-        0
-      );
+      const imageDataUrl = await resizeBase64Image(imageBase64);
+      const groq = getGroqClient();
+
+      const userHint = foodHint
+        ? `User context hint: "${foodHint}". Prioritize matching this hint if visually reasonable.`
+        : "";
+
+      const systemPrompt = `You are a master Indian culinary expert and nutritionist. Analyze this food image carefully.
+${userHint}
+
+INDIAN DISH VISUAL TAXONOMY & DIFFERENTIATION RULES:
+
+1. SOUTH INDIAN MIXED RICE & DAL-RICE:
+   - SAMBAR RICE / SAMBAR SADAM / BISIBELEBATH: Soft, wet, mashed porridge consistency made of rice cooked WITH toor dal in an orange-red spiced gravy. May contain visible tomatoes, drumsticks, onions, or curry leaves. It is thick and soupy/mashed, NEVER dry separate grains.
+   - TOMATO RICE (THAKKALI SADAM): Dry or fluffy SEPARATE rice grains sautéed in tomato gravy. It has NO dal cooked into a soft mushy porridge.
+   - CURD RICE (THAYIR SADAM): Creamy white rice mixed with curd/yogurt, tempered with mustard seeds, green chillies, and curry leaves.
+   - LEMON RICE / PULIHORA: Bright yellow (turmeric) or dark brown (tamarind) separate-grain rice with peanuts and curry leaves.
+
+2. NORTH INDIAN & STUFFED FLATBREADS:
+   - ALOO PARATHA / STUFFED PARATHA: Thick, round, whole-wheat flatbread cooked on a griddle/tava with distinct brown roasted spots, containing yellow spiced potato filling inside.
+   - ROTI / NAAN / PURI: Plain wheat flatbreads or baked leavened bread WITHOUT potato stuffing inside.
+   - KHICHDI: Wet, soupy porridge of yellow rice and moong dal with turmeric.
+   - BIRYANI / PULAO: Long-grain Basmati rice with distinct separate grains and spices.
+
+3. SOUTH INDIAN BREAKFAST / TIFFINS:
+   - MASALA DOSA: Thin, golden-brown, paper-crisp rice-and-lentil CREPE/BATTER folded or rolled.
+   - RAVA UPMA: Coarse, crumbly semolina grains with mustard seeds, curry leaves, onions, coriander, and lemon.
+   - VEN PONGAL: Creamy, soft, thick ghee-glossy rice/dal porridge with visible whole black peppercorns, cumin, and cashew halves.
+   - IDLI: Distinct round, thick, white steamed rice cakes.
+
+4. SWEETS & DESSERTS (MITHAI):
+   - SUJI HALWA / SHEERA: Sweet semolina paste in ghee (NO mustard seeds, NO chillies, NO onions).
+   - GAJAR KA HALWA: Bright orange/red grated carrot dessert cooked in milk and ghee.
+
+CRITICAL CONSISTENCY DIRECTIVES:
+- If rice is cooked WITH DAL into a soft, wet, thick porridge/soup texture with orange gravy, it is **Sambar Rice / Sambar Sadam**, NOT Tomato Rice.
+
+Return ONLY a valid JSON object matching this exact structure:
+{
+  "foodItem": "Exact Authentic Indian Dish Name",
+  "mealType": "Breakfast | Lunch | Dinner | Snack",
+  "calories": 320,
+  "proteinG": 9,
+  "carbsG": 55,
+  "fatG": 8,
+  "alternatives": ["Alternative Dish 1", "Alternative Dish 2"],
+  "notes": "Short portion estimate under 15 words"
+}`;
+
+      const completion = await groq.chat.completions.create({
+        model: "qwen/qwen3.6-27b",
+        reasoning_effort: "none",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: systemPrompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageDataUrl,
+                },
+              },
+            ],
+          },
+        ],
+        temperature: 0.0, // Strict deterministic output
+        max_tokens: 1024,
+      } as any);
+
+      const responseText = completion.choices[0]?.message?.content || "{}";
+      const analysis = parseJsonResponse(responseText);
+
+      // Save to database storage
+      const profile = await storage.getOrCreateProfile((req.user as any).id);
+      const today = new Date().toISOString().split("T")[0];
+
+      const newLog = await storage.addNutritionLog({
+        profileId: profile.id,
+        date: today,
+        mealType: analysis.mealType || "Breakfast",
+        foodItem: analysis.foodItem || foodHint || "Scanned Meal",
+        calories: Number(analysis.calories) || 0,
+        proteinG: Number(analysis.proteinG) || 0,
+        carbsG: Number(analysis.carbsG) || 0,
+        fatG: Number(analysis.fatG) || 0,
+      });
 
       res.json({
-        profile,
-        nutritionLogs: nutrition,
-        workoutLogs: workoutsList,
-        nutrition,
-        workouts: workoutsList,
-        totalCaloriesConsumed,
-        totalCaloriesBurned,
-        totalWorkoutMin,
+        success: true,
+        analysis,
+        loggedEntry: newLog,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("Groq Vision Error:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze image." });
     }
   });
-
   // ── Nutrition log ─────────────────────────────────────────────────────────
 
   app.post("/api/nutrition", requireAuth, async (req, res) => {
@@ -314,11 +423,9 @@ export async function registerRoutes(
   });
 
   // ── AI Agent ──────────────────────────────────────────────────────────────
-// ── AI Agent ──────────────────────────────────────────────────────────────
 
   app.post("/api/agent", requireAuth, async (req, res) => {
     try {
-      // 1. Extract question and context from req.body (Fixes line 419 error)
       const { question, context } = req.body as {
         question?: string;
         context?: Record<string, unknown>;
@@ -508,7 +615,6 @@ export async function registerRoutes(
           dataUpdated = true;
         }
 
-        // 2. FIX: Wipes existing workouts BEFORE adding the new AI generated plan
         if (workout_plan && Array.isArray(workout_plan.workouts)) {
           await storage.clearTodayWorkouts(profile.id);
 
