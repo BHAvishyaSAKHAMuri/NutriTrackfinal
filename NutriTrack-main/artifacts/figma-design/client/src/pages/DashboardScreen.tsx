@@ -132,7 +132,7 @@ export default function DashboardScreen() {
             <Link href="/bmi">
               <span className="font-bold text-[20px] text-black cursor-pointer font-['Readex_Pro',sans-serif]">BMI</span>
             </Link>
-            <Link href="/workouts">
+            <Link href="/progress">
               <span className="font-bold text-[20px] text-black cursor-pointer font-['Readex_Pro',sans-serif]">Progress</span>
             </Link>
           </nav>

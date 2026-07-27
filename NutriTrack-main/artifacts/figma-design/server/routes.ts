@@ -4,6 +4,44 @@ import { storage } from "./storage";
 import { handleAgent, getProviderConfig } from "./agent";
 import { passport, requireAuth } from "./auth";
 
+// --- MET calculation helper ---
+const MET_MAP: Record<string, number> = {
+  walking: 3.8,
+  running: 8.0,
+  cycling: 6.8,
+  swimming: 7.0,
+  yoga: 3.0,
+  gym: 5.0,
+  weightlifting: 5.0,
+  hiit: 8.0,
+  cardio: 7.0,
+  pilates: 3.0,
+};
+
+function calculateCaloriesBurned(
+  exercise: string,
+  durationMin: number,
+  weightKg: number = 70
+): number {
+  const normalized = (exercise || "").toLowerCase().trim();
+  const matchedKey = Object.keys(MET_MAP).find((k) => normalized.includes(k));
+  const met = matchedKey ? MET_MAP[matchedKey] : 5.0;
+  return Math.round(met * weightKg * (durationMin / 60));
+}
+
+export interface AgentContext {
+  profile?: Record<string, any>;
+  totalsTillNow?: {
+    totalCaloriesConsumed: number;
+    totalCaloriesBurned: number;
+    totalWorkoutMin: number;
+    netCalories: number;
+  };
+  todayWorkouts?: any[];
+  todayNutrition?: any[];
+  [key: string]: any;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -16,20 +54,26 @@ export async function registerRoutes(
 
   // ── Profile ───────────────────────────────────────────────────────────────
 
-  // GET /api/profile — returns (or auto-creates) the user's profile
   app.get("/api/profile", requireAuth, async (req, res) => {
     try {
       const profile = await storage.getOrCreateProfile((req.user as any).id);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
       res.json(profile);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // PATCH /api/profile — update profile fields
   app.patch("/api/profile", requireAuth, async (req, res) => {
     try {
       const profile = await storage.getOrCreateProfile((req.user as any).id);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
       const updated = await storage.updateProfile(profile.id, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -37,11 +81,14 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/profile/today — today's nutrition + workout summary
   app.get("/api/profile/today", requireAuth, async (req, res) => {
     try {
       const profile = await storage.getOrCreateProfile((req.user as any).id);
-      const [nutrition, workouts] = await Promise.all([
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
+      const [nutrition, workoutsList] = await Promise.all([
         storage.getTodayNutrition(profile.id),
         storage.getTodayWorkouts(profile.id),
       ]);
@@ -50,18 +97,21 @@ export async function registerRoutes(
         (sum, n) => sum + (n.calories ?? 0),
         0
       );
-      const totalCaloriesBurned = workouts.reduce(
+      const totalCaloriesBurned = workoutsList.reduce(
         (sum, w) => sum + (w.caloriesBurned ?? 0),
         0
       );
-      const totalWorkoutMin = workouts.reduce(
+      const totalWorkoutMin = workoutsList.reduce(
         (sum, w) => sum + (w.durationMin ?? 0),
         0
       );
 
       res.json({
+        profile,
+        nutritionLogs: nutrition,
+        workoutLogs: workoutsList,
         nutrition,
-        workouts,
+        workouts: workoutsList,
         totalCaloriesConsumed,
         totalCaloriesBurned,
         totalWorkoutMin,
@@ -76,6 +126,10 @@ export async function registerRoutes(
   app.post("/api/nutrition", requireAuth, async (req, res) => {
     try {
       const profile = await storage.getOrCreateProfile((req.user as any).id);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
       const today = new Date().toISOString().split("T")[0];
       const entry = await storage.addNutritionLog({
         profileId: req.body.profileId ?? profile.id,
@@ -95,27 +149,52 @@ export async function registerRoutes(
 
   // ── Workout log ────────────────────────────────────────────────────────────
 
-  app.post("/api/workout", requireAuth, async (req, res) => {
+  app.get("/api/workouts", requireAuth, async (req, res) => {
     try {
       const profile = await storage.getOrCreateProfile((req.user as any).id);
-      const today = new Date().toISOString().split("T")[0];
-      const entry = await storage.addWorkoutLog({
-        profileId: req.body.profileId ?? profile.id,
-        date: today,
-        exercise: req.body.exercise ?? null,
-        durationMin: req.body.durationMin ?? null,
-        caloriesBurned: req.body.caloriesBurned ?? null,
-        notes: req.body.notes ?? null,
-      });
-      res.json(entry);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
+      const todayWorkouts = await storage.getTodayWorkouts(profile.id);
+      res.json(todayWorkouts);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
+  app.post("/api/workouts", requireAuth, async (req, res) => {
+    try {
+      const profile = await storage.getOrCreateProfile((req.user as any).id);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
+      const { exercise, durationMin, notes } = req.body;
+      const weightKg = profile?.weightKg || 70;
+      const today = new Date().toISOString().split("T")[0];
+
+      const caloriesBurned = req.body.caloriesBurned
+        ? Number(req.body.caloriesBurned)
+        : calculateCaloriesBurned(exercise, Number(durationMin), weightKg);
+
+      const workout = await storage.addWorkoutLog({
+        profileId: profile.id,
+        date: today,
+        exercise,
+        durationMin: Number(durationMin),
+        caloriesBurned,
+        notes: notes || "",
+      });
+
+      res.json(workout);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to log workout" });
+    }
+  });
+
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  // GET /api/auth/me — return the currently logged-in user (or 401)
   app.get("/api/auth/me", (req, res) => {
     if (!req.isAuthenticated()) {
       res.status(401).json({ error: "Not authenticated." });
@@ -125,25 +204,27 @@ export async function registerRoutes(
     res.json({ id: u.id, username: u.username, email: u.email ?? null });
   });
 
-  // POST /api/auth/login — authenticate with email + password
   app.post("/api/auth/login", (req, res, next) => {
-    passport.authenticate(
-      "local",
-      (err: any, user: any, info: any) => {
-        if (err) return next(err);
-        if (!user) {
-          res.status(401).json({ error: info?.message || "Invalid email or password." });
-          return;
-        }
-        req.logIn(user, (loginErr) => {
-          if (loginErr) return next(loginErr);
-          res.json({ ok: true, id: user.id, username: user.username, email: user.email ?? null });
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) {
+        res
+          .status(401)
+          .json({ error: info?.message || "Invalid email or password." });
+        return;
+      }
+      req.logIn(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
+        res.json({
+          ok: true,
+          id: user.id,
+          username: user.username,
+          email: user.email ?? null,
         });
-      },
-    )(req, res, next);
+      });
+    })(req, res, next);
   });
 
-  // POST /api/auth/logout — end the session
   app.post("/api/auth/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
@@ -151,7 +232,6 @@ export async function registerRoutes(
     });
   });
 
-  // POST /api/auth/register — create a new user account and log them in
   app.post("/api/auth/register", async (req, res) => {
     const { username, email, password } = req.body as {
       username?: string;
@@ -168,13 +248,18 @@ export async function registerRoutes(
         email: email?.trim() || undefined,
         password,
       });
-      // Wrap req.logIn in a Promise so errors propagate correctly in async handlers
       await new Promise<void>((resolve, reject) => {
         req.logIn(user, (err) => (err ? reject(err) : resolve()));
       });
-      res.json({ ok: true, id: user.id, username: user.username, email: user.email });
+      res.json({
+        ok: true,
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      });
     } catch (error: any) {
-      const isDuplicate = error.message?.includes("unique") || error.code === "23505";
+      const isDuplicate =
+        error.message?.includes("unique") || error.code === "23505";
       res.status(isDuplicate ? 409 : 500).json({
         error: isDuplicate ? "Username or email already taken." : error.message,
       });
@@ -183,7 +268,6 @@ export async function registerRoutes(
 
   // ── Password reset ────────────────────────────────────────────────────────
 
-  // POST /api/auth/forgot-password — generate a reset token for a username
   app.post("/api/auth/forgot-password", async (req, res) => {
     const { username } = req.body as { username?: string };
     if (!username || typeof username !== "string") {
@@ -193,21 +277,20 @@ export async function registerRoutes(
     try {
       const token = await storage.createResetToken(username.trim());
       if (!token) {
-        // Don't reveal whether the username exists
         res.json({ ok: true });
         return;
       }
-      // In a real app this token would be emailed. We return it directly so the
-      // UI can display it as a one-time reset code (dev / no-email setup).
       res.json({ ok: true, token });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // POST /api/auth/reset-password — validate token and set new password
   app.post("/api/auth/reset-password", async (req, res) => {
-    const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+    const { token, newPassword } = req.body as {
+      token?: string;
+      newPassword?: string;
+    };
     if (!token || !newPassword) {
       res.status(400).json({ error: "Token and new password are required." });
       return;
@@ -219,7 +302,9 @@ export async function registerRoutes(
     try {
       const ok = await storage.resetPassword(token.trim(), newPassword);
       if (!ok) {
-        res.status(400).json({ error: "Invalid or expired reset code. Please request a new one." });
+        res.status(400).json({
+          error: "Invalid or expired reset code. Please request a new one.",
+        });
         return;
       }
       res.json({ ok: true });
@@ -229,9 +314,11 @@ export async function registerRoutes(
   });
 
   // ── AI Agent ──────────────────────────────────────────────────────────────
+// ── AI Agent ──────────────────────────────────────────────────────────────
 
   app.post("/api/agent", requireAuth, async (req, res) => {
     try {
+      // 1. Extract question and context from req.body (Fixes line 419 error)
       const { question, context } = req.body as {
         question?: string;
         context?: Record<string, unknown>;
@@ -242,19 +329,60 @@ export async function registerRoutes(
         return;
       }
 
-      const config = getProviderConfig();
-      if (!config.configured) {
-        res.status(503).json({
-          error:
-            "No AI provider configured. Add GEMINI_API_KEY, ANTHROPIC_API_KEY, or GLM_API_KEY to environment secrets.",
+      // Fetch user profile
+      const profile = await storage.getOrCreateProfile((req.user as any).id);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
+
+      const lowerQ = question.toLowerCase();
+
+      // Check for explicit reset intent
+      if (
+        lowerQ.includes("reset workout") ||
+        lowerQ.includes("clear workout") ||
+        lowerQ.includes("reset my exercises") ||
+        lowerQ.includes("delete workout plan")
+      ) {
+        await storage.clearTodayWorkouts(profile.id);
+
+        res.json({
+          answer: "I've reset your workout plan for today!",
+          dataUpdated: true,
         });
         return;
       }
 
-      // Get the current profile to use as context baseline
-      const profile = await storage.getOrCreateProfile((req.user as any).id);
+      const config = getProviderConfig();
+      if (!config.configured) {
+        res.status(503).json({
+          error: "No AI provider configured. Add GEMINI_API_KEY to environment secrets.",
+        });
+        return;
+      }
 
-      // Merge server-side profile into context so the agent always has it
+      // Fetch logged nutrition & workouts
+      const [todayNutrition, todayWorkouts] = await Promise.all([
+        storage.getTodayNutrition(profile.id),
+        storage.getTodayWorkouts(profile.id),
+      ]);
+
+      // Compute exact totals
+      const totalCaloriesConsumed = todayNutrition.reduce(
+        (sum, n) => sum + (n.calories ?? 0),
+        0
+      );
+      const totalCaloriesBurned = todayWorkouts.reduce(
+        (sum, w) => sum + (w.caloriesBurned ?? 0),
+        0
+      );
+      const totalWorkoutMin = todayWorkouts.reduce(
+        (sum, w) => sum + (w.durationMin ?? 0),
+        0
+      );
+
+      // Context building
       const agentContext = {
         ...(context || {}),
         profile: {
@@ -279,19 +407,34 @@ export async function registerRoutes(
           injuries: profile.injuries,
           ...((context as any)?.profile || {}),
         },
+        totalsTillNow: {
+          totalCaloriesConsumed,
+          totalCaloriesBurned,
+          totalWorkoutMin,
+          netCalories: totalCaloriesConsumed - totalCaloriesBurned,
+        },
+        todayWorkouts,
+        todayNutrition,
       };
 
-      const result = await handleAgent(question, agentContext);
+      // Pass request to handleAgent
+      const result = await handleAgent(question, agentContext as any);
 
-      // ── Persist any extracted data ──────────────────────────────────────
+      let dataUpdated = false;
+      let updatedProfile = null;
       const today = new Date().toISOString().split("T")[0];
-      let updatedProfile = profile;
 
+      // Process DB updates if returned by AI
       if (result.updates) {
-        const { profile_updates, nutrition_log, workout_log } = result.updates;
+        const {
+          profile_updates,
+          nutrition_log,
+          workout_log,
+          meal_plan,
+          workout_plan,
+        } = result.updates;
 
         if (profile_updates && Object.keys(profile_updates).length > 0) {
-          // Map snake_case API names → camelCase drizzle column names
           const mapped: Record<string, any> = {};
           if (profile_updates.name !== undefined) mapped.name = profile_updates.name;
           if (profile_updates.weight_kg !== undefined) mapped.weightKg = profile_updates.weight_kg;
@@ -313,6 +456,7 @@ export async function registerRoutes(
           if (profile_updates.calories_target !== undefined) mapped.caloriesTarget = profile_updates.calories_target;
 
           updatedProfile = await storage.updateProfile(profile.id, mapped);
+          dataUpdated = true;
         }
 
         if (nutrition_log && (nutrition_log.food_item || nutrition_log.calories)) {
@@ -326,17 +470,66 @@ export async function registerRoutes(
             carbsG: nutrition_log.carbs_g ?? null,
             fatG: nutrition_log.fat_g ?? null,
           });
+          dataUpdated = true;
         }
 
         if (workout_log && (workout_log.exercise || workout_log.duration_min)) {
+          const durationMin = Number(workout_log.duration_min) || 0;
+          const exercise = workout_log.exercise || "Workout";
+          const caloriesBurned =
+            workout_log.calories_burned && Number(workout_log.calories_burned) > 0
+              ? Number(workout_log.calories_burned)
+              : calculateCaloriesBurned(exercise, durationMin, profile.weightKg || 70);
+
           await storage.addWorkoutLog({
             profileId: profile.id,
             date: today,
-            exercise: workout_log.exercise ?? null,
-            durationMin: workout_log.duration_min ?? null,
-            caloriesBurned: workout_log.calories_burned ?? null,
+            exercise,
+            durationMin,
+            caloriesBurned,
             notes: workout_log.notes ?? null,
           });
+          dataUpdated = true;
+        }
+
+        if (meal_plan && Array.isArray(meal_plan.meals)) {
+          for (const meal of meal_plan.meals) {
+            await storage.addNutritionLog({
+              profileId: profile.id,
+              date: today,
+              mealType: meal.mealType || meal.meal_type || "Meal",
+              foodItem: meal.foodItem || meal.food_item || "AI Recommended Meal",
+              calories: meal.calories ? Number(meal.calories) : null,
+              proteinG: meal.proteinG ? Number(meal.proteinG) : null,
+              carbsG: meal.carbsG ? Number(meal.carbsG) : null,
+              fatG: meal.fatG ? Number(meal.fatG) : null,
+            });
+          }
+          dataUpdated = true;
+        }
+
+        // 2. FIX: Wipes existing workouts BEFORE adding the new AI generated plan
+        if (workout_plan && Array.isArray(workout_plan.workouts)) {
+          await storage.clearTodayWorkouts(profile.id);
+
+          for (const item of workout_plan.workouts) {
+            const durationMin = Number(item.durationMin || item.duration_min) || 30;
+            const exercise = item.exercise || "AI Workout Routine";
+            const caloriesBurned =
+              item.caloriesBurned || item.calories_burned
+                ? Number(item.caloriesBurned || item.calories_burned)
+                : calculateCaloriesBurned(exercise, durationMin, profile.weightKg || 70);
+
+            await storage.addWorkoutLog({
+              profileId: profile.id,
+              date: today,
+              exercise,
+              durationMin,
+              caloriesBurned,
+              notes: item.day ? `Scheduled for ${item.day}` : null,
+            });
+          }
+          dataUpdated = true;
         }
       }
 
@@ -346,7 +539,8 @@ export async function registerRoutes(
         model: result.model,
         responseMode: result.responseMode,
         knowledgeUsed: result.knowledgeUsed,
-        dataUpdated: !!result.updates,
+        updates: result.updates,
+        dataUpdated,
         updatedProfile,
       });
     } catch (error: any) {

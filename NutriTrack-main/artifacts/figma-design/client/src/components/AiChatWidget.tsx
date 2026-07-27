@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
   role: "user" | "assistant";
@@ -85,6 +86,7 @@ async function askAgent(
 }
 
 export function AiChatWidget({ profile, onDataUpdate }: Props) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -113,12 +115,22 @@ export function AiChatWidget({ profile, onDataUpdate }: Props) {
     try {
       const { answer, dataUpdated } = await askAgent(question, profile);
       setMessages((m) => [...m, { role: "assistant", text: answer, dataUpdated }]);
-      if (dataUpdated && onDataUpdate) {
-        onDataUpdate();
+
+      if (dataUpdated) {
+        // Automatically force live refresh of dashboard stats & profile data
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/today"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+
+        if (onDataUpdate) {
+          onDataUpdate();
+        }
       }
     } catch (err: any) {
       const msg = err.message || "";
-      const isQuota = msg.toLowerCase().includes("quota") || msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED");
+      const isQuota =
+        msg.toLowerCase().includes("quota") ||
+        msg.includes("429") ||
+        msg.includes("RESOURCE_EXHAUSTED");
       setMessages((m) => [
         ...m,
         {
@@ -195,7 +207,9 @@ export function AiChatWidget({ profile, onDataUpdate }: Props) {
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${
+                  msg.role === "user" ? "justify-end" : "justify-start"
+                }`}
               >
                 {msg.role === "assistant" && (
                   <div className="w-[28px] h-[28px] rounded-full bg-[#dcfce7] flex items-center justify-center text-[14px] shrink-0 mr-2 mt-1">
@@ -214,7 +228,9 @@ export function AiChatWidget({ profile, onDataUpdate }: Props) {
                   </div>
                   {msg.dataUpdated && (
                     <div className="flex items-center gap-1 ml-1">
-                      <span className="text-[11px] text-[#22c55e] font-semibold">✓ Dashboard updated</span>
+                      <span className="text-[11px] text-[#22c55e] font-semibold">
+                        ✓ Dashboard updated
+                      </span>
                     </div>
                   )}
                 </div>
@@ -274,8 +290,20 @@ export function AiChatWidget({ profile, onDataUpdate }: Props) {
               aria-label="Send"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M22 2L11 13" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M22 2L11 13"
+                  stroke="white"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M22 2L15 22L11 13L2 9L22 2Z"
+                  stroke="white"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </button>
           </div>

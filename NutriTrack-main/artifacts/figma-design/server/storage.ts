@@ -20,6 +20,7 @@ const { Pool } = pg;
 
 export interface IStorage {
   // Users
+  clearTodayWorkouts(profileId: string): Promise<void>;
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmailOrUsername(value: string): Promise<User | undefined>;
@@ -244,6 +245,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ── Workouts ───────────────────────────────────────────────────────────────
+
+  async clearTodayWorkouts(profileId: string): Promise<void> {
+    const today = new Date().toISOString().split("T")[0];
+    await this.db
+      .delete(workoutLogs)
+      .where(and(eq(workoutLogs.profileId, profileId), eq(workoutLogs.date, today)));
+  }
 
   async addWorkoutLog(entry: InsertWorkoutLog): Promise<WorkoutLog> {
     const result = await this.db.insert(workoutLogs).values(entry).returning();

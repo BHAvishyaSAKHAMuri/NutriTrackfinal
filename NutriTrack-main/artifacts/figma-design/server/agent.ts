@@ -91,6 +91,33 @@ export interface AgentDataUpdates {
     calories_burned?: number;
     notes?: string;
   } | null;
+  meal_plan?: {
+    title?: string;
+    meals?: Array<{
+      mealType?: string;
+      meal_type?: string;
+      foodItem?: string;
+      food_item?: string;
+      calories?: number;
+      proteinG?: number;
+      protein_g?: number;
+      carbsG?: number;
+      carbs_g?: number;
+      fatG?: number;
+      fat_g?: number;
+    }>;
+  } | null;
+  workout_plan?: {
+    title?: string;
+    workouts?: Array<{
+      day?: string;
+      exercise?: string;
+      durationMin?: number;
+      duration_min?: number;
+      caloriesBurned?: number;
+      calories_burned?: number;
+    }>;
+  } | null;
 }
 
 let knowledgeBase: KnowledgeBase = loadKnowledgeBase();
@@ -109,7 +136,7 @@ function loadKnowledgeBase(): KnowledgeBase {
 export function getProviderConfig(): ProviderConfig {
   const requested = (process.env.AI_PROVIDER || "").toLowerCase().trim();
 
-  // 1. Groq Support (100% Free & Fast)
+  // 1. Groq Support
   if ((requested === "groq" || process.env.GROQ_API_KEY) && process.env.GROQ_API_KEY) {
     return {
       provider: "Groq",
@@ -127,7 +154,7 @@ export function getProviderConfig(): ProviderConfig {
     return {
       provider: "GLM",
       configured: true,
-      model: process.env.GLM_MODEL || "glm-4.7-flash", // Corrected default fallback
+      model: process.env.GLM_MODEL || "glm-4.7-flash",
       baseUrl:
         process.env.GLM_BASE_URL ||
         "https://open.bigmodel.cn/api/paas/v4/chat/completions",
@@ -281,16 +308,22 @@ function buildSystemPrompt(): string {
     "If the user asks for dangerous dieting, extreme weight loss, or pain-through-injury advice, refuse that part and offer a safer alternative.",
     "When creating plans, include exact next actions and avoid vague wellness language.",
     "",
-    "IMPORTANT — DATA EXTRACTION:",
-    "If the user explicitly shares personal health data (their weight, height, age, gender, goal change, food they ate, exercise they completed, allergies, dietary restrictions, health conditions, activity level, diet type, injuries, equipment), append the following block at the very end of your response:",
+    "IMPORTANT — DATA EXTRACTION & AUTOMATIC LOGGING:",
+    "If the user explicitly shares health updates, logs a meal/workout, OR asks you to recommend/create a meal plan or workout plan, append the following block at the VERY END of your response:",
     "<<<DATA>>>",
-    '{"profile_updates":null,"nutrition_log":null,"workout_log":null}',
+    '{"profile_updates":null,"nutrition_log":null,"workout_log":null,"meal_plan":null,"workout_plan":null}',
     "<<<END>>>",
-    "Replace null only for fields the user explicitly mentioned. Use these exact field names:",
-    "profile_updates: name, weight_kg, height_cm, age, gender, goal, activity_level, diet_type, calories_target, allergies, conditions, restrictions, favorites, dislikes, lifestyle, occupation, equipment, injuries",
-    "nutrition_log: meal_type (breakfast/lunch/dinner/snack), food_item, calories, protein_g, carbs_g, fat_g",
-    "workout_log: exercise, duration_min, calories_burned, notes",
-    "If the user mentioned NOTHING about their personal health data, DO NOT include the <<<DATA>>> block at all.",
+    "",
+    "Field definitions for <<<DATA>>>:",
+    "- profile_updates: name, weight_kg, height_cm, age, gender, goal, activity_level, diet_type, calories_target, allergies, conditions, restrictions, favorites, dislikes, lifestyle, occupation, equipment, injuries",
+    "- nutrition_log: single meal entry (meal_type, food_item, calories, protein_g, carbs_g, fat_g)",
+    "- workout_log: single workout entry (exercise, duration_min, calories_burned, notes)",
+    "- meal_plan: populated when user asks for meal recommendations or a plan. Structure:",
+    '  "meal_plan": { "title": "Daily Meal Plan", "meals": [{ "mealType": "Breakfast", "foodItem": "Oatmeal with berries", "calories": 350, "proteinG": 12, "carbsG": 55, "fatG": 6 }] }',
+    "- workout_plan: populated when user asks for workout recommendations or routine. Structure:",
+    '  "workout_plan": { "title": "Fitness Routine", "workouts": [{ "day": "Today", "exercise": "30 min Brisk Walking", "durationMin": 30, "caloriesBurned": 150 }] }',
+    "",
+    "Replace null ONLY for fields present in user input or generated in plans. If the user mentioned NOTHING personal and asked NO plan generation, DO NOT output the <<<DATA>>> block at all.",
   ].join("\n");
 }
 
@@ -322,12 +355,30 @@ function parseDataBlock(raw: string): { answer: string; updates: AgentDataUpdate
 
   const answer = raw.replace(/<<<DATA>>>[\s\S]*?<<<END>>>/, "").trim();
   try {
-    const updates = JSON.parse(match[1]) as AgentDataUpdates;
-    if (!updates.profile_updates && !updates.nutrition_log && !updates.workout_log) {
+    // Strip markdown formatting if the model wrapped JSON in ```json ... ```
+    let jsonStr = match[1].trim();
+    jsonStr = jsonStr
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/, "")
+      .replace(/\s*```$/, "")
+      .trim();
+
+    const updates = JSON.parse(jsonStr) as AgentDataUpdates;
+
+    const hasUpdates =
+      Boolean(updates.profile_updates && Object.keys(updates.profile_updates).length > 0) ||
+      Boolean(updates.nutrition_log && Object.keys(updates.nutrition_log).length > 0) ||
+      Boolean(updates.workout_log && Object.keys(updates.workout_log).length > 0) ||
+      Boolean(updates.meal_plan?.meals && updates.meal_plan.meals.length > 0) ||
+      Boolean(updates.workout_plan?.workouts && updates.workout_plan.workouts.length > 0);
+
+    if (!hasUpdates) {
       return { answer, updates: null };
     }
+
     return { answer, updates };
-  } catch {
+  } catch (err) {
+    console.error("❌ Failed to parse AI <<<DATA>>> block:", err);
     return { answer, updates: null };
   }
 }
@@ -349,7 +400,7 @@ async function callOpenAICompatible(
     body: JSON.stringify({
       model: config.model,
       temperature: 0.55,
-      max_tokens: responseMode === "concise" ? 200 : 900,
+      max_tokens: responseMode === "concise" ? 200 : 1200,
       messages: [
         { role: "system", content: buildSystemPrompt() },
         {
@@ -395,7 +446,7 @@ async function callGemini(
       ],
       generationConfig: {
         temperature: 0.55,
-        maxOutputTokens: responseMode === "concise" ? 200 : 900,
+        maxOutputTokens: responseMode === "concise" ? 200 : 1200,
       },
     }),
   });
@@ -425,7 +476,7 @@ async function callClaude(
     },
     body: JSON.stringify({
       model: config.model,
-      max_tokens: responseMode === "concise" ? 200 : 900,
+      max_tokens: responseMode === "concise" ? 200 : 1200,
       temperature: 0.55,
       system: buildSystemPrompt(),
       messages: [

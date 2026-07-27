@@ -14,7 +14,10 @@ import CreateAccountScreen from "@/pages/CreateAccountScreen";
 import ForgotPasswordScreen from "@/pages/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/pages/ResetPasswordScreen";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProgressPage } from "@/components/ProgressPage";
+import { ChatProvider } from "@/context/ChatContext";
 
+// Initialize Query Client at file level
 const queryClient = new QueryClient();
 
 function Router() {
@@ -25,37 +28,56 @@ function Router() {
       <Route path="/create-account" component={CreateAccountScreen} />
       <Route path="/forgot-password" component={ForgotPasswordScreen} />
       <Route path="/reset-password" component={ResetPasswordScreen} />
+
+      {/* Protected App Routes */}
       <Route path="/signup">
-        <ProtectedRoute><SignUpScreen /></ProtectedRoute>
+        <ProtectedRoute>
+          <SignUpScreen />
+        </ProtectedRoute>
       </Route>
       <Route path="/dashboard">
-        <ProtectedRoute><DashboardScreen /></ProtectedRoute>
+        <ProtectedRoute>
+          <DashboardScreen />
+        </ProtectedRoute>
       </Route>
       <Route path="/meal-plan">
-        <ProtectedRoute><MealPlanScreen /></ProtectedRoute>
+        <ProtectedRoute>
+          <MealPlanScreen />
+        </ProtectedRoute>
       </Route>
       <Route path="/workouts">
-        <ProtectedRoute><WorkoutScreen /></ProtectedRoute>
+        <ProtectedRoute>
+          <WorkoutScreen />
+        </ProtectedRoute>
       </Route>
       <Route path="/bmi">
-        <ProtectedRoute><BMICalculatorScreen /></ProtectedRoute>
+        <ProtectedRoute>
+          <BMICalculatorScreen />
+        </ProtectedRoute>
       </Route>
+      <Route path="/progress">
+        <ProtectedRoute>
+          <ProgressPage />
+        </ProtectedRoute>
+      </Route>
+
+      {/* 404 Fallback */}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <ChatProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </ChatProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;
