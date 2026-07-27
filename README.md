@@ -79,6 +79,8 @@ NutriTrack-main/
 │   ├── api-zod/               # Generated Zod validation schemas
 │   └── db/                    # Drizzle ORM schema and config
 └── scripts/                   # Utility scripts
+---
+
 ## 🌐 Pages & Routes
 
 | Route | Page | Access |
@@ -115,29 +117,35 @@ cd NutriTrackfinal/NutriTrack-main
 
 # Install dependencies
 pnpm install
-----
-Environment VariablesCreate a .env file in the NutriTrack-main/ directory:Code snippetDATABASE_URL=postgresql://user:password@localhost:5432/nutritrack
+---
+
+Environment Variables
+Create a .env file in the NutriTrack-main/ directory:Code snippetDATABASE_URL=postgresql://user:password@localhost:5432/nutritrack
 SESSION_SECRET=your_session_secret_here
 GROQ_API_KEY=your_groq_api_key_here
 GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-----
+---
+
 Database Setup
 Bash
 # Push the schema to your database
 pnpm --filter @workspace/figma-design run db:push
-----
+---
+
 Running the App
 Bash
 # Start the development server
 pnpm --filter @workspace/figma-design run dev
 The app will be available at http://localhost:5000.
-----
+---
+
 Build for Production
 Bash
 pnpm --filter @workspace/figma-design run build
 pnpm --filter @workspace/figma-design run start
-----
+---
+
 ⚡ API Highlights
 Endpoint,Method,Description
 /api/profile,GET / POST,Get or update user health profile
@@ -146,7 +154,8 @@ Endpoint,Method,Description
 /api/agent,POST,AI health assistant (chat)
 /api/vision/food,POST,Analyze food from image (base64)
 /api/healthz,GET,Server health check
-----
+---
+
 🤖 AI Features in Detail
 Meal Scanner
 Upload or capture a photo of any food. The app sends the image to an AI vision endpoint that returns:
