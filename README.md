@@ -129,8 +129,8 @@ Create a `.env` file in the `NutriTrack-main/` directory:
 DATABASE_URL=postgresql://user:password@localhost:5432/nutritrack
 SESSION_SECRET=your_session_secret_here
 GROQ_API_KEY=your_groq_api_key_here
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+GOOGLE_CLIENT_ID=your_google_client_id_here(optional)
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here(optional)
 ```
 
 ### Database Setup
