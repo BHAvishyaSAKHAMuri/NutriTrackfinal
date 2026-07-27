@@ -38,19 +38,19 @@ export default function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen overflow-x-auto bg-[#fff8f5]">
-      <div className="relative w-[1440px] min-h-screen flex">
+    <div className="min-h-screen bg-[#fff8f5] flex items-center justify-center">
+      <div className="relative w-full max-w-7xl min-h-screen flex flex-col lg:flex-row items-center justify-between px-6 lg:px-12 py-10 gap-12">
 
-        {/* ── LEFT decorative panel ── */}
-        <div className="relative flex-1 flex flex-col justify-center items-center px-16 py-12">
+        {/* ── LEFT decorative panel (Left-Aligned) ── */}
+        <div className="relative flex-1 flex flex-col justify-center items-start w-full">
           <Link href="/">
-            <div className="absolute top-10 left-8 w-[38px] h-[38px] rounded-full bg-white shadow-md flex items-center justify-center cursor-pointer hover:shadow-lg transition-shadow">
+            <div className="mb-8 w-[38px] h-[38px] rounded-full bg-white shadow-md flex items-center justify-center cursor-pointer hover:shadow-lg transition-shadow">
               <span className="text-[18px] text-gray-500">←</span>
             </div>
           </Link>
 
-          <div className="mb-16 text-center max-w-[560px]">
-            <h2 className="font-['Poppins',sans-serif] font-bold text-[48px] text-[#1f2937] leading-tight">
+          <div className="mb-10 text-left max-w-[560px]">
+            <h2 className="font-['Poppins',sans-serif] font-bold text-[38px] sm:text-[48px] text-[#1f2937] leading-tight">
               Your personal <br />
               <span className="text-[#22c55e]">health coach</span> <br />
               awaits you 🌿
@@ -60,7 +60,7 @@ export default function LoginScreen() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-5 w-full max-w-[560px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-[560px]">
             {features.map((f, i) => (
               <div key={i} className={`${f.color} rounded-[18px] p-5 flex items-center gap-4 shadow-[0px_4px_20px_rgba(0,0,0,0.04)]`}>
                 <div className="w-[48px] h-[48px] rounded-full bg-white flex items-center justify-center text-[24px] shadow-sm shrink-0 overflow-hidden">
@@ -83,7 +83,7 @@ export default function LoginScreen() {
             ))}
           </div>
 
-          <div className="mt-12 flex items-center gap-3 bg-white rounded-[14px] px-5 py-3 shadow-sm">
+          <div className="mt-10 flex items-center gap-3 bg-white rounded-[14px] px-5 py-3 shadow-sm">
             <div className="flex -space-x-2">
               {[1, 2, 3, 4].map((n) => (
                 <div key={n} className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-gray-200">
@@ -102,9 +102,9 @@ export default function LoginScreen() {
           </div>
         </div>
 
-        {/* ── RIGHT form card ── */}
-        <div className="flex items-center justify-center py-12 pr-16">
-          <div className="bg-white rounded-[24px] shadow-[0px_10px_40px_0px_rgba(0,0,0,0.25)] w-[533px] px-12 py-10">
+        {/* ── RIGHT form card (Left-Aligned Text) ── */}
+        <div className="w-full max-w-[500px] flex items-center justify-center">
+          <div className="bg-white rounded-[24px] shadow-[0px_10px_40px_0px_rgba(0,0,0,0.12)] w-full px-8 sm:px-12 py-10 text-left">
 
             <Link href="/">
               <p className="font-['Poppins',sans-serif] text-[20px] font-semibold mb-6 cursor-pointer">
@@ -113,8 +113,8 @@ export default function LoginScreen() {
               </p>
             </Link>
 
-            <h1 className="font-['Inter',sans-serif] font-bold text-[42px] text-[#111827] leading-tight mb-1">Login</h1>
-            <p className="font-['Poppins',sans-serif] text-[15px] text-black mb-8">Welcome back! Please login to continue.</p>
+            <h1 className="font-['Inter',sans-serif] font-bold text-[36px] text-[#111827] leading-tight mb-1">Login</h1>
+            <p className="font-['Poppins',sans-serif] text-[15px] text-[#6b7280] mb-8">Welcome back! Please login to continue.</p>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
               {/* Email */}
@@ -162,7 +162,7 @@ export default function LoginScreen() {
               </div>
 
               {error && (
-                <p className="font-['Poppins',sans-serif] text-[13px] text-red-500 text-center -mt-1">{error}</p>
+                <p className="font-['Poppins',sans-serif] text-[13px] text-red-500 text-left -mt-1">{error}</p>
               )}
 
               <button
