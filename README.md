@@ -79,21 +79,41 @@ NutriTrack-main/
 │   ├── api-zod/               # Generated Zod validation schemas
 │   └── db/                    # Drizzle ORM schema and config
 └── scripts/                   # Utility scripts
-🌐 Pages & RoutesRoutePageAccess/Landing / Frame screenPublic/loginSign inPublic/create-accountRegisterPublic/forgot-passwordPassword reset requestPublic/reset-passwordPassword resetPublic/signupOnboarding / profile setupProtected/dashboardDaily summary, AI chat, meal scannerProtected/meal-planPersonalized meal planProtected/workoutsWorkout loggingProtected/bmiBMI calculatorProtected/progressHealth & fitness progressProtected🚀 Getting StartedPrerequisitesNode.js v20+pnpm v9+A PostgreSQL databaseA Groq API key (for AI features)Google OAuth credentials (for authentication)InstallationBash# Clone the repository
+---
+
+## 🌐 Pages & Routes
+
+| Route | Page | Access |
+| :--- | :--- | :--- |
+| `/` | Landing / Frame screen | Public |
+| `/login` | Sign in | Public |
+| `/create-account` | Register | Public |
+| `/forgot-password` | Password reset request | Public |
+| `/reset-password` | Password reset | Public |
+| `/signup` | Onboarding / profile setup | Protected |
+| `/dashboard` | Daily summary, AI chat, meal scanner | Protected |
+| `/meal-plan` | Personalized meal plan | Protected |
+| `/workouts` | Workout logging | Protected |
+| `/bmi` | BMI calculator | Protected |
+| `/progress` | Health & fitness progress | Protected |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js v20+
+- pnpm v9+
+- A PostgreSQL database
+- A Groq API key (for AI features)
+- Google OAuth credentials (for authentication)
+
+### Installation
+
+```bash
+# Clone the repository
 git clone [https://github.com/BHAvishyaSAKHAMuri/NutriTrackfinal.git](https://github.com/BHAvishyaSAKHAMuri/NutriTrackfinal.git)
 cd NutriTrackfinal/NutriTrack-main
 
 # Install dependencies
 pnpm install
-Environment VariablesCreate a .env file in the NutriTrack-main/ directory:Code snippetDATABASE_URL=postgresql://user:password@localhost:5432/nutritrack
-SESSION_SECRET=your_session_secret_here
-GROQ_API_KEY=your_groq_api_key_here
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-Database SetupBash# Push the schema to your database
-pnpm --filter @workspace/figma-design run db:push
-Running the AppBash# Start the development server
-pnpm --filter @workspace/figma-design run dev
-The app will be available at http://localhost:5000.Build for ProductionBashpnpm --filter @workspace/figma-design run build
-pnpm --filter @workspace/figma-design run start
-⚡ API HighlightsEndpointMethodDescription/api/profileGET / POSTGet or update user health profile/api/profile/todayGETToday's calorie and workout summary/api/meal-planGETFetch personalized meal plan/api/agentPOSTAI health assistant (chat)/api/vision/foodPOSTAnalyze food from image (base64)/api/healthzGETServer health check🤖 AI Features in DetailMeal ScannerUpload or capture a photo of any food. The app sends the image to an AI vision endpoint that returns:Food item nameEstimated caloriesProtein, carbohydrates, and fat in gramsThe result is automatically added to your daily nutrition log.AI Chat AssistantThe chat widget sends your question along with your full health profile (goals, restrictions, BMI, activity level, etc.) to the AI agent. The agent can:Answer nutrition and fitness questionsLog a meal or workout you describe in plain textSuggest meal ideas based on your preferences and calorie targetProvide workout recommendations based on your available equipment and fitness level🤝 ContributingFork the repositoryCreate a feature branch: git checkout -b feature/your-feature-nameCommit your changes: git commit -m "feat: add your feature"Push to the branch: git push origin feature/your-feature-nameOpen a Pull Request📄 LicenseThis project is licensed under the MIT License.
