@@ -37,9 +37,6 @@ NutriTrack is a full-stack nutrition and fitness tracking web application that h
 - Set health goals (weight loss, muscle gain, maintenance).
 - Record allergies, medical conditions, food restrictions, and equipment available.
 
-### 🔒 Authentication
-- Google Sign-In with protected routes for all app features.
-
 ---
 
 ## 🛠️ Tech Stack
