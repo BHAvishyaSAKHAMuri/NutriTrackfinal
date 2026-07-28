@@ -6,6 +6,7 @@ import { passport, requireAuth } from "./auth";
 import Groq from "groq-sdk";
 import sharp from "sharp";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
 // --- Helper to safely parse JSON from LLM outputs ---
 function parseJsonResponse(text: string): Record<string, any> {
   try {
@@ -17,6 +18,7 @@ function parseJsonResponse(text: string): Record<string, any> {
     return {};
   }
 }
+
 // --- Lazy Groq Client Helper ---
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -230,6 +232,7 @@ Return ONLY a valid JSON object matching this exact structure:
       res.status(500).json({ error: error.message || "Failed to analyze image." });
     }
   });
+
   // ── Nutrition log ─────────────────────────────────────────────────────────
 
   app.post("/api/nutrition", requireAuth, async (req, res) => {
