@@ -38,13 +38,7 @@ const DEFAULT_MEALS = [
     img: "/figmaAssets/meal-dinner.png",
     color: "text-[rgba(15,60,151,0.47)]",
   },
-  {
-    time: "Bed time",
-    items: "Warm Turmeric Milk",
-    kcal: "90 kcal",
-    img: "/figmaAssets/meal-bedtime.png",
-    color: "text-[rgba(15,60,151,0.47)]",
-  },
+  
 ];
 
 // Helper to assign images based on meal type name
