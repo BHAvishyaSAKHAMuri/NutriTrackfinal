@@ -287,7 +287,7 @@ export default function DashboardScreen() {
                   {today.totalWorkoutMin}
                 </p>
                 <p className="text-[13px] text-gray-400 mt-1">minutes</p>
-                {today.workouts.length > 0 && (
+                {today.workoutLogs?.length > 0 && (
                   <p className="text-[12px] text-gray-500 mt-2 truncate">
                     {today.workouts.map(w => w.exercise).filter(Boolean).join(", ")}
                   </p>
@@ -349,11 +349,11 @@ export default function DashboardScreen() {
           </div>
 
           {/* Today's meals log */}
-          {today && today.nutrition.length > 0 && (
+          {today?.nutritionLogs?.length > 0 && (
             <div className="bg-white rounded-[20px] p-6 shadow-[0px_4px_20px_rgba(0,0,0,0.08)] mb-8">
               <h2 className="font-['Poppins',sans-serif] text-[18px] font-bold text-black mb-4">🍽️ Today's Meals</h2>
               <div className="flex flex-col gap-2">
-                {today.nutrition.map((n, i) => (
+                {today.nutritionLogs.map((n, i) => (
                   <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div>
                       <span className="text-[13px] font-semibold text-gray-700 capitalize">

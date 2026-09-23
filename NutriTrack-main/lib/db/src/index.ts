@@ -1,6 +1,9 @@
+import "dotenv/config"; // 1. Add this at the very top to force .env loading
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
+
+console.log("MY API KEY IS:", process.env.GROQ_API_KEY); // 2. Add this test
 
 const { Pool } = pg;
 

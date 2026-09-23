@@ -6,6 +6,7 @@ import { passport, requireAuth } from "./auth";
 import Groq from "groq-sdk";
 import sharp from "sharp";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
 // --- Helper to safely parse JSON from LLM outputs ---
 function parseJsonResponse(text: string): Record<string, any> {
   try {
@@ -17,6 +18,7 @@ function parseJsonResponse(text: string): Record<string, any> {
     return {};
   }
 }
+
 // --- Lazy Groq Client Helper ---
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -112,6 +114,28 @@ export async function registerRoutes(
       const currentProfile = await storage.getOrCreateProfile((req.user as any).id);
       const updatedProfile = await storage.updateProfile(currentProfile.id, req.body);
       res.json(updatedProfile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── 🌟 NEW ROUTE ADDED HERE: Missing Endpoint for the Frontend Dashboard ──
+  app.get("/api/profile/today", requireAuth, async (req, res) => {
+    try {
+      const profile = await storage.getOrCreateProfile((req.user as any).id);
+      if (!profile) {
+        res.status(404).json({ error: "Profile not found." });
+        return;
+      }
+      
+      const todayNutrition = await storage.getTodayNutrition(profile.id);
+      const todayWorkouts = await storage.getTodayWorkouts(profile.id);
+
+      res.json({
+        profile,
+        nutritionLogs: todayNutrition,
+        workoutLogs: todayWorkouts
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -230,6 +254,7 @@ Return ONLY a valid JSON object matching this exact structure:
       res.status(500).json({ error: error.message || "Failed to analyze image." });
     }
   });
+
   // ── Nutrition log ─────────────────────────────────────────────────────────
 
   app.post("/api/nutrition", requireAuth, async (req, res) => {
@@ -461,6 +486,29 @@ Return ONLY a valid JSON object matching this exact structure:
         return;
       }
 
+      // Check for explicit reset intent for food
+      if (
+        lowerQ.includes("clear food") ||
+        lowerQ.includes("reset meals") ||
+        lowerQ.includes("delete food") ||
+        lowerQ.includes("clear nutrition")
+      ) {
+        if (typeof (storage as any).clearTodayNutrition === 'function') {
+           await (storage as any).clearTodayNutrition(profile.id);
+           res.json({
+             answer: "I've wiped your meals for today! Dashboard is clean.",
+             dataUpdated: true,
+           });
+           return;
+        } else {
+           res.json({
+             answer: "The 'clearTodayNutrition' function is missing in storage.ts! Please add it first.",
+             dataUpdated: false,
+           });
+           return;
+        }
+      }
+
       const config = getProviderConfig();
       if (!config.configured) {
         res.status(503).json({
@@ -572,10 +620,10 @@ Return ONLY a valid JSON object matching this exact structure:
             date: today,
             mealType: nutrition_log.meal_type ?? null,
             foodItem: nutrition_log.food_item ?? null,
-            calories: nutrition_log.calories ?? null,
-            proteinG: nutrition_log.protein_g ?? null,
-            carbsG: nutrition_log.carbs_g ?? null,
-            fatG: nutrition_log.fat_g ?? null,
+            calories: nutrition_log.calories ? Number(nutrition_log.calories) : null,
+            proteinG: nutrition_log.protein_g ? Number(nutrition_log.protein_g) : null,
+            carbsG: nutrition_log.carbs_g ? Number(nutrition_log.carbs_g) : null,
+            fatG: nutrition_log.fat_g ? Number(nutrition_log.fat_g) : null,
           });
           dataUpdated = true;
         }
