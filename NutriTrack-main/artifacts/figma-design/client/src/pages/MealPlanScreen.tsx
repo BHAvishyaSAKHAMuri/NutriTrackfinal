@@ -10,11 +10,35 @@ interface NutritionLog {
 }
 
 const DEFAULT_MEALS = [
-  { time: "Breakfast", items: "Oats Upma + Banana + Green Tea", kcal: "350 kcal", img: "/figmaAssets/meal-breakfast.png", color: "text-[rgba(15,60,151,0.47)]" },
-  { time: "Lunch", items: "Brown Rice + Dal + Mix Veg + Salad", kcal: "500 kcal", img: "/figmaAssets/meal-lunch.png", color: "text-[rgba(15,60,151,0.47)]" },
-  { time: "Evening Snack", items: "Mixed Nuts + Fruit Bowl", kcal: "200 kcal", img: "/figmaAssets/meal-snack.png", color: "text-[rgba(15,60,151,0.47)]" },
-  { time: "Dinner", items: "Roti + Paneer Curry + Dal Soup", kcal: "450 kcal", img: "/figmaAssets/meal-dinner.png", color: "text-[rgba(15,60,151,0.47)]" },
-  { time: "Bed time", items: "Warm Turmeric Milk", kcal: "90 kcal", img: "/figmaAssets/meal-bedtime.png", color: "text-[rgba(15,60,151,0.47)]" },
+  {
+    time: "Breakfast",
+    items: "Oats Upma + Banana + Green Tea",
+    kcal: "350 kcal",
+    img: "/figmaAssets/meal-breakfast.png",
+    color: "text-[rgba(15,60,151,0.47)]",
+  },
+  {
+    time: "Lunch",
+    items: "Brown Rice + Dal + Mix Veg + Salad",
+    kcal: "500 kcal",
+    img: "/figmaAssets/meal-lunch.png",
+    color: "text-[rgba(15,60,151,0.47)]",
+  },
+  {
+    time: "Evening Snack",
+    items: "Mixed Nuts + Fruit Bowl",
+    kcal: "200 kcal",
+    img: "/figmaAssets/meal-snack.png",
+    color: "text-[rgba(15,60,151,0.47)]",
+  },
+  {
+    time: "Dinner",
+    items: "Roti + Paneer Curry + Dal Soup",
+    kcal: "450 kcal",
+    img: "/figmaAssets/meal-dinner.png",
+    color: "text-[rgba(15,60,151,0.47)]",
+  },
+  
 ];
 
 function getMealImage(mealType: string): string {
